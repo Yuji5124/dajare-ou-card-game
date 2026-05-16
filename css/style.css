@@ -122,9 +122,14 @@ h3 {
   border: 2px solid #ffd1dc;
 }
 
+.enemy-list {
+  display: grid;
+  gap: 12px;
+}
+
 .enemy-card {
   display: grid;
-  grid-template-columns: 58px 1fr;
+  grid-template-columns: 58px 1fr auto;
   gap: 8px 12px;
   align-items: center;
   width: 100%;
@@ -136,6 +141,20 @@ h3 {
 
 .enemy-card small {
   grid-column: 2;
+  line-height: 1.35;
+}
+
+.enemy-card em {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #fff7c8;
+  color: #6b4a00;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .avatar {

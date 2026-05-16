@@ -20,11 +20,7 @@
 
     <section id="enemyScreen" class="screen">
       <header><h2>敵をえらぶ</h2></header>
-      <button id="enemyBtn" class="enemy-card">
-        <span class="avatar">は</span>
-        <strong>はじめくん</strong>
-        <small>やさしいバランス型</small>
-      </button>
+      <div id="enemyList" class="enemy-list"></div>
       <button class="back ghost" data-to="titleScreen">もどる</button>
     </section>
 
@@ -45,7 +41,7 @@
     <section id="battleScreen" class="screen">
       <header class="scorebar">
         <div>自分 <strong id="playerScore">0</strong>P</div>
-        <div>はじめくん <strong id="enemyScore">0</strong>P</div>
+        <div><span id="enemyName">相手</span> <strong id="enemyScore">0</strong>P</div>
       </header>
       <div id="battleLog" class="log">ダジャレ札をえらんでください。</div>
       <div id="resultBurst" class="result-burst" aria-live="polite"></div>

@@ -1,5 +1,47 @@
 const SAVE_KEY = "dajare-ou-save-v1";
 const OWNED_NORI = ["041", "042", "044", "047", "059"];
+const ENEMIES = [
+  {
+    id: "hajime",
+    name: "はじめくん",
+    avatar: "は",
+    level: "やさしい",
+    desc: "OP6以下中心。最初の相手にちょうどいい。",
+    pun: "easy",
+    reactions: ["041", "042", "044", "047", "058"],
+    reactionChance: 0.42
+  },
+  {
+    id: "jiwari",
+    name: "じわりちゃん",
+    avatar: "じ",
+    level: "ふつう",
+    desc: "ノリカード多め。じわじわ強くなるタイプ。",
+    pun: "balanced",
+    reactions: ["041", "042", "045", "048", "051", "056", "057", "059"],
+    reactionChance: 0.72
+  },
+  {
+    id: "tsukkomi",
+    name: "つっこみ先輩",
+    avatar: "ツ",
+    level: "手ごわい",
+    desc: "相手を下げるノリカードを多く使う。",
+    pun: "balanced",
+    reactions: ["046", "049", "050", "052", "054", "055", "060"],
+    reactionChance: 0.7
+  },
+  {
+    id: "rare",
+    name: "レア王",
+    avatar: "王",
+    level: "つよい",
+    desc: "OP7以上やレアカードが多い。カード集め向け。",
+    pun: "rare",
+    reactions: ["043", "049", "053", "055", "057", "058", "060"],
+    reactionChance: 0.62
+  }
+];
 const state = {
   cards: [],
   owned: [],
@@ -16,17 +58,13 @@ async function init() {
   state.cards = await fetch("data/cards.json").then((res) => res.json());
   loadSave();
   bindEvents();
+  renderEnemies();
   renderDeck();
   show("titleScreen");
 }
 
 function bindEvents() {
   $("startBtn").addEventListener("click", () => show("enemyScreen"));
-  $("enemyBtn").addEventListener("click", () => {
-    state.enemy = { name: "はじめくん" };
-    renderDeck();
-    show("deckScreen");
-  });
   $("autoDeckBtn").addEventListener("click", autoDeck);
   $("battleBtn").addEventListener("click", startBattle);
   $("judgeBtn").addEventListener("click", () => {
@@ -40,6 +78,27 @@ function bindEvents() {
   $("homeBtn").addEventListener("click", () => show("titleScreen"));
   document.querySelectorAll(".back").forEach((button) => {
     button.addEventListener("click", () => show(button.dataset.to));
+  });
+}
+
+function renderEnemies() {
+  $("enemyList").innerHTML = "";
+  ENEMIES.forEach((enemy) => {
+    const node = document.createElement("button");
+    node.type = "button";
+    node.className = "enemy-card";
+    node.innerHTML = `
+      <span class="avatar">${enemy.avatar}</span>
+      <strong>${enemy.name}</strong>
+      <small>${enemy.desc}</small>
+      <em>${enemy.level}</em>
+    `;
+    node.addEventListener("click", () => {
+      state.enemy = enemy;
+      renderDeck();
+      show("deckScreen");
+    });
+    $("enemyList").appendChild(node);
   });
 }
 
@@ -127,6 +186,7 @@ function startBattle() {
   }
   const playerDeck = shuffle(cardsByIds(state.deck));
   const enemyDeck = buildEnemyDeck();
+  $("enemyName").textContent = state.enemy?.name || "相手";
   state.battle = {
     playerDeck,
     enemyDeck,
@@ -147,11 +207,37 @@ function startBattle() {
 }
 
 function buildEnemyDeck() {
-  const puns = state.cards
-    .filter((card) => card.type === "pun" && card.power <= 6)
+  const enemy = state.enemy || ENEMIES[0];
+  const punPool = enemyPunPool(enemy);
+  const reactions = cardsByIds(enemy.reactions);
+  const punCount = Math.max(18, 30 - reactions.length);
+  const deck = [...punPool.slice(0, punCount), ...reactions];
+  const used = new Set(deck.map((card) => card.id));
+  state.cards
+    .filter((card) => card.type === "pun" && !used.has(card.id))
+    .sort((a, b) => b.power - a.power || a.id.localeCompare(b.id))
+    .forEach((card) => {
+      if (deck.length < 30) deck.push(card);
+    });
+  return shuffle(deck).slice(0, 30);
+}
+
+function enemyPunPool(enemy) {
+  const puns = state.cards.filter((card) => card.type === "pun");
+  if (enemy.pun === "easy") {
+    return puns
+      .filter((card) => card.power <= 6)
+      .sort((a, b) => b.power - a.power || a.id.localeCompare(b.id));
+  }
+  if (enemy.pun === "rare") {
+    return puns
+      .filter((card) => card.power >= 7)
+      .concat(puns.filter((card) => card.power === 6).slice(0, 8))
+      .sort((a, b) => b.power - a.power || a.id.localeCompare(b.id));
+  }
+  return puns
+    .filter((card) => card.power <= 7)
     .sort((a, b) => b.power - a.power || a.id.localeCompare(b.id));
-  const support = cardsByIds(["041", "042", "044", "047", "058"]);
-  return shuffle([...puns.slice(0, 25), ...support]).slice(0, 30);
 }
 
 function updateBattle(message) {
@@ -275,7 +361,9 @@ function pickEnemyPun() {
 
 function pickEnemyReaction(enemyPun) {
   const b = state.battle;
-  const index = b.enemyHand.findIndex((card) => card.type === "reaction" && enemyPun.power <= 6);
+  const chance = state.enemy?.reactionChance ?? 0.45;
+  if (Math.random() > chance) return null;
+  const index = b.enemyHand.findIndex((card) => card.type === "reaction" && enemyPun.power <= 8);
   return index >= 0 ? b.enemyHand.splice(index, 1)[0] : null;
 }
 
