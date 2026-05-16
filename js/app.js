@@ -16,6 +16,7 @@ async function init() {
   state.cards = await fetch("data/cards.json").then((res) => res.json());
   loadSave();
   bindEvents();
+  renderDeck();
   show("titleScreen");
 }
 
@@ -81,11 +82,15 @@ function show(id) {
 
 function renderDeck() {
   $("deckCount").textContent = `${state.deck.length} / 30`;
+  $("battleBtn").disabled = state.deck.length !== 30;
+  $("deckHelp").textContent = state.deck.length === 30
+    ? "準備OK。バトル開始できます。"
+    : `あと${30 - state.deck.length}枚選ぶとバトルできます。`;
   $("cardList").innerHTML = "";
   state.cards.forEach((card) => {
     const owned = state.owned.includes(card.id);
     const inDeck = state.deck.includes(card.id);
-    const node = cardNode(card, { locked: !owned, selected: inDeck });
+    const node = cardNode(card, { locked: !owned, selected: inDeck, owned, inDeck });
     node.addEventListener("click", () => toggleDeck(card, owned));
     $("cardList").appendChild(node);
   });
@@ -105,7 +110,9 @@ function toggleDeck(card, owned) {
 
 function autoDeck() {
   const ownedCards = cardsByIds(state.owned);
-  const puns = ownedCards.filter((card) => card.type === "pun").sort((a, b) => b.power - a.power);
+  const puns = ownedCards
+    .filter((card) => card.type === "pun")
+    .sort((a, b) => b.power - a.power || a.id.localeCompare(b.id));
   const reactions = ownedCards.filter((card) => card.type === "reaction");
   state.deck = [...puns.slice(0, 25), ...reactions.slice(0, 5)].map((card) => card.id).slice(0, 30);
   save();
@@ -115,6 +122,7 @@ function autoDeck() {
 function startBattle() {
   if (state.deck.length !== 30) {
     $("deckCount").textContent = `${state.deck.length} / 30 にしてください`;
+    $("deckHelp").textContent = "30枚ちょうどでバトル開始できます。おすすめ編成が早いです。";
     return;
   }
   const playerDeck = shuffle(cardsByIds(state.deck));
@@ -139,9 +147,11 @@ function startBattle() {
 }
 
 function buildEnemyDeck() {
-  const puns = state.cards.filter((card) => card.type === "pun").sort((a, b) => b.power - a.power);
-  const reactions = state.cards.filter((card) => card.type === "reaction");
-  return shuffle([...puns.slice(0, 20), ...puns.slice(20, 30), ...reactions.slice(0, 10)]).slice(0, 30);
+  const puns = state.cards
+    .filter((card) => card.type === "pun" && card.power <= 6)
+    .sort((a, b) => b.power - a.power || a.id.localeCompare(b.id));
+  const support = cardsByIds(["041", "042", "044", "047", "058"]);
+  return shuffle([...puns.slice(0, 25), ...support]).slice(0, 30);
 }
 
 function updateBattle(message) {
@@ -162,7 +172,8 @@ function renderHand() {
   $("hand").innerHTML = "";
   b.playerHand.forEach((card) => {
     const selected = b.selectedPun?.id === card.id || b.selectedReaction?.id === card.id;
-    const node = cardNode(card, { selected });
+    const ready = card.type === "reaction" && b.selectedPun && !b.usedReaction;
+    const node = cardNode(card, { selected, ready });
     if (card.type === "reaction" && b.usedReaction && !selected) node.disabled = true;
     node.addEventListener("click", () => playFromHand(card));
     $("hand").appendChild(node);
@@ -292,6 +303,7 @@ function stealCard() {
     state.owned.push(card.id);
     save();
   }
+  showGain(card);
   return card;
 }
 
@@ -311,8 +323,14 @@ function finishOrNext(message) {
       $("resultTitle").textContent = win ? "勝利！" : "敗北";
       $("resultText").textContent = win ? "新しいカードを集めて、もっと強いデッキへ。" : "デッキを組み直して再挑戦しよう。";
       show("resultScreen");
-    }, 900);
+    }, 650);
   }
+}
+
+function showGain(card) {
+  const banner = $("gainBanner");
+  banner.textContent = `新カード入手: ${card.name}`;
+  banner.className = "gain-banner show";
 }
 
 function renderPlayed(target, pun, reaction) {
@@ -342,11 +360,16 @@ function clearBurst() {
   if (!burst) return;
   burst.className = "result-burst";
   burst.textContent = "";
+  const banner = $("gainBanner");
+  if (banner) {
+    banner.className = "gain-banner";
+    banner.textContent = "";
+  }
 }
 
 function cardNode(card, opts = {}) {
   const node = document.createElement("button");
-  node.className = `toy-card ${card.type} ${card.id === "040" ? "rare" : ""} ${opts.locked ? "locked" : ""} ${opts.selected ? "selected" : ""}`;
+  node.className = `toy-card ${card.type} ${card.id === "040" ? "rare" : ""} ${opts.locked ? "locked" : ""} ${opts.owned && !opts.locked ? "owned" : ""} ${opts.inDeck ? "in-deck" : ""} ${opts.ready ? "reaction-ready" : ""} ${opts.selected ? "selected" : ""}`;
   node.type = "button";
   node.setAttribute("aria-label", `${card.name}${card.type === "pun" ? ` ${card.power}P` : ""}`);
   node.innerHTML = `
