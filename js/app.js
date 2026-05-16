@@ -1,5 +1,19 @@
 const SAVE_KEY = "dajare-ou-save-v1";
 const OWNED_NORI = ["041", "042", "044", "047", "059"];
+const CARD_ICONS = {
+  "001": "🥦", "002": "🍅", "003": "🥕", "004": "🛏️", "005": "🍛",
+  "006": "🐸", "007": "🐱", "008": "🐶", "009": "🐘", "010": "🐻",
+  "011": "🐟", "012": "☎️", "013": "🍨", "014": "🍊", "015": "🍋",
+  "016": "🍉", "017": "🐮", "018": "🐍", "019": "🐵", "020": "🦑",
+  "021": "🐚", "022": "⭐", "023": "☀️", "024": "💧", "025": "✂️",
+  "026": "📖", "027": "🎵", "028": "🍓", "029": "🍠", "030": "🥗",
+  "031": "🍖", "032": "🍫", "033": "🥤", "034": "🐭", "035": "🐬",
+  "036": "🛞", "037": "🚉", "038": "🛝", "039": "🍰", "040": "👑",
+  "041": "✨", "042": "↗️", "043": "👑", "044": "🔄", "045": "🌱",
+  "046": "❗", "047": "⏪", "048": "🎁", "049": "⬇️", "050": "🚫",
+  "051": "🌶️", "052": "🛡️", "053": "💪", "054": "⚖️", "055": "⚡",
+  "056": "💡", "057": "👏", "058": "🎉", "059": "⭐", "060": "🤫"
+};
 const ENEMIES = [
   {
     id: "hajime",
@@ -44,7 +58,7 @@ const ENEMIES = [
 ];
 const state = {
   cards: [],
-  owned: [],
+  ownedCounts: {},
   deck: [],
   enemy: null,
   battle: null
@@ -105,28 +119,72 @@ function renderEnemies() {
 function loadSave() {
   const saved = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
   if (saved) {
-    state.owned = saved.owned || initialOwned();
-    state.deck = saved.deck || [];
+    state.ownedCounts = migrateOwnedCounts(saved);
+    state.deck = uniqueDeck(saved.deck || []);
+    save();
     return;
   }
-  state.owned = initialOwned();
+  state.ownedCounts = initialOwnedCounts();
   state.deck = [];
   save();
 }
 
-function initialOwned() {
-  return state.cards
+function initialOwnedCounts() {
+  return Object.fromEntries(state.cards
     .filter((card) => card.type === "pun" ? card.power <= 6 : OWNED_NORI.includes(card.id))
-    .map((card) => card.id);
+    .map((card) => [card.id, 1]));
+}
+
+function migrateOwnedCounts(saved) {
+  const counts = {};
+  const add = (id, amount = 1) => {
+    const key = normalizeId(id);
+    if (!key) return;
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) return;
+    counts[key] = (counts[key] || 0) + value;
+  };
+  if (saved.ownedCards && typeof saved.ownedCards === "object" && !Array.isArray(saved.ownedCards)) {
+    Object.entries(saved.ownedCards).forEach(([id, count]) => add(id, count));
+  } else if (Array.isArray(saved.owned)) {
+    saved.owned.forEach((id) => add(id));
+  } else if (saved.owned && typeof saved.owned === "object") {
+    Object.entries(saved.owned).forEach(([id, count]) => add(id, count));
+  }
+  return Object.keys(counts).length ? counts : initialOwnedCounts();
+}
+
+function normalizeId(id) {
+  const raw = String(id).trim();
+  return state.cards.find((card) => card.id === raw)?.id
+    || state.cards.find((card) => Number(card.id) === Number(raw))?.id
+    || null;
+}
+
+function uniqueDeck(deck) {
+  const seen = new Set();
+  return deck.map(normalizeId).filter((id) => {
+    if (!id || seen.has(id) || ownedCount(id) < 1) return false;
+    seen.add(id);
+    return true;
+  }).slice(0, 30);
+}
+
+function ownedCount(id) {
+  return state.ownedCounts[id] || 0;
+}
+
+function ownedIds() {
+  return state.cards.filter((card) => ownedCount(card.id) > 0).map((card) => card.id);
 }
 
 function save() {
-  localStorage.setItem(SAVE_KEY, JSON.stringify({ owned: state.owned, deck: state.deck }));
+  localStorage.setItem(SAVE_KEY, JSON.stringify({ ownedCards: state.ownedCounts, deck: state.deck }));
 }
 
 function resetSave() {
   localStorage.removeItem(SAVE_KEY);
-  state.owned = initialOwned();
+  state.ownedCounts = initialOwnedCounts();
   state.deck = [];
   save();
   $("battleLog").textContent = "セーブをリセットしました。";
@@ -141,18 +199,26 @@ function show(id) {
 
 function renderDeck() {
   $("deckCount").textContent = `${state.deck.length} / 30`;
+  renderCollectionStats();
   $("battleBtn").disabled = state.deck.length !== 30;
   $("deckHelp").textContent = state.deck.length === 30
     ? "準備OK。バトル開始できます。"
     : `あと${30 - state.deck.length}枚選ぶとバトルできます。`;
   $("cardList").innerHTML = "";
   state.cards.forEach((card) => {
-    const owned = state.owned.includes(card.id);
+    const count = ownedCount(card.id);
+    const owned = count > 0;
     const inDeck = state.deck.includes(card.id);
-    const node = cardNode(card, { locked: !owned, selected: inDeck, owned, inDeck });
+    const node = cardNode(card, { locked: !owned, selected: inDeck, owned, inDeck, compact: true, count });
     node.addEventListener("click", () => toggleDeck(card, owned));
     $("cardList").appendChild(node);
   });
+}
+
+function renderCollectionStats() {
+  const ownedTypes = state.cards.filter((card) => ownedCount(card.id) > 0).length;
+  const total = Object.values(state.ownedCounts).reduce((sum, count) => sum + Number(count || 0), 0);
+  $("collectionStats").textContent = `所持カード種類数 ${ownedTypes}/${state.cards.length} / 総所持枚数 ${total}枚`;
 }
 
 function toggleDeck(card, owned) {
@@ -168,7 +234,7 @@ function toggleDeck(card, owned) {
 }
 
 function autoDeck() {
-  const ownedCards = cardsByIds(state.owned);
+  const ownedCards = cardsByIds(ownedIds());
   const puns = ownedCards
     .filter((card) => card.type === "pun")
     .sort((a, b) => b.power - a.power || a.id.localeCompare(b.id));
@@ -244,7 +310,8 @@ function updateBattle(message) {
   const b = state.battle;
   $("playerScore").textContent = b.playerScore;
   $("enemyScore").textContent = b.enemyScore;
-  $("battleLog").textContent = message;
+  renderScorePips();
+  renderBattleLog({ result: message });
   $("turnHint").textContent = "ダジャレ札を選択";
   $("judgeBtn").disabled = !b.selectedPun;
   updateBattleStatus();
@@ -285,7 +352,11 @@ function playFromHand(card) {
   if (b.selectedPun) {
     $("turnHint").textContent = b.usedReaction ? "同じダジャレ札で勝負" : "ノリカード任意";
     $("judgeBtn").disabled = false;
-    $("battleLog").textContent = "ノリカードを使うなら1枚えらんでください。同じダジャレ札か勝負ボタンで判定します。";
+    renderBattleLog({
+      played: `選択: ${b.selectedPun.name} / ${b.selectedPun.power}P`,
+      nori: b.selectedReaction ? `ノリ: ${b.selectedReaction.name}` : "ノリ: 使うなら今選べます",
+      result: "勝負ボタンで判定します"
+    });
     updateBattleStatus();
   }
 }
@@ -307,6 +378,7 @@ function resolveTurn() {
   playerPower = enemyEffect.enemy;
 
   let message = `自分「${b.selectedPun.name}」${playerPower}P vs 相手「${enemyPun.name}」${enemyPower}P。`;
+  let outcomeText = "";
   if (b.selectedReaction) message += ` 自分は「${b.selectedReaction.name}」。`;
   if (enemyReaction) message += ` 相手は「${enemyReaction.name}」。`;
 
@@ -320,15 +392,24 @@ function resolveTurn() {
     b.playerScore += 1;
     const won = stealCard();
     message += ` 勝ち！${won ? `「${won.name}」を入手。` : ""}`;
+    outcomeText = won ? `勝ち！ ${won.name}を入手` : "勝ち！ 1Pゲット";
     showBurst(won ? `入手！ ${won.name}` : "勝ち！", won ? "gain" : "win");
   } else if (playerPower < enemyPower) {
     b.enemyScore += 1;
     message += " 負け。";
+    outcomeText = "負け。相手が1P";
     showBurst("負け", "lose");
   } else {
     message += " 引き分け。";
+    outcomeText = "引き分け。得点なし";
     showBurst("引き分け", "draw");
   }
+
+  b.lastLog = {
+    played: `札: ${b.selectedPun.name} ${playerPower}P / 相手 ${enemyPun.name} ${enemyPower}P`,
+    nori: `ノリ: ${b.selectedReaction?.name || "なし"} / 相手 ${enemyReaction?.name || "なし"}`,
+    result: outcomeText
+  };
 
   discardPlayed(enemyPun, enemyReaction);
   drawUp();
@@ -387,11 +468,10 @@ function stealCard() {
   if (!b.enemyDeck.length) return null;
   const index = rand(0, b.enemyDeck.length - 1);
   const card = b.enemyDeck.splice(index, 1)[0];
-  if (!state.owned.includes(card.id)) {
-    state.owned.push(card.id);
-    save();
-  }
-  showGain(card);
+  const before = ownedCount(card.id);
+  state.ownedCounts[card.id] = before + 1;
+  save();
+  showGain(card, before === 0, state.ownedCounts[card.id]);
   return card;
 }
 
@@ -399,7 +479,8 @@ function finishOrNext(message) {
   const b = state.battle;
   $("playerScore").textContent = b.playerScore;
   $("enemyScore").textContent = b.enemyScore;
-  $("battleLog").textContent = message;
+  renderScorePips();
+  renderBattleLog(b.lastLog || { result: message });
   $("turnHint").textContent = "次のダジャレ札を選択";
   $("judgeBtn").disabled = true;
   updateBattleStatus();
@@ -415,9 +496,9 @@ function finishOrNext(message) {
   }
 }
 
-function showGain(card) {
+function showGain(card, isNew, count) {
   const banner = $("gainBanner");
-  banner.textContent = `新カード入手: ${card.name}`;
+  banner.textContent = isNew ? `NEW! ${card.name}を入手` : `${card.name} +1枚 / 所持${count}枚`;
   banner.className = "gain-banner show";
 }
 
@@ -435,6 +516,50 @@ function updateBattleStatus() {
   $("reactionState").textContent = b.usedReaction
     ? (b.selectedReaction ? `使用済み: ${b.selectedReaction.name}` : "使用済み")
     : "未使用";
+  $("selectedStatus").classList.toggle("ready", Boolean(b.selectedPun));
+  $("reactionStatus").classList.toggle("used", b.usedReaction);
+  renderSelectedPreview();
+}
+
+function renderBattleLog(lines) {
+  const log = $("battleLog");
+  log.innerHTML = "";
+  [
+    ["札", lines.played],
+    ["ノリ", lines.nori],
+    ["結果", lines.result]
+  ].filter((line) => line[1]).forEach(([label, text]) => {
+    const row = document.createElement("div");
+    row.className = "log-row";
+    row.innerHTML = `<span class="log-label">${label}</span><span>${text}</span>`;
+    log.appendChild(row);
+  });
+}
+
+function renderScorePips() {
+  renderPips("playerPips", state.battle?.playerScore || 0);
+  renderPips("enemyPips", state.battle?.enemyScore || 0);
+}
+
+function renderPips(target, score) {
+  const area = $(target);
+  area.innerHTML = "";
+  for (let i = 0; i < 5; i += 1) {
+    const pip = document.createElement("span");
+    if (i < score) pip.className = "on";
+    area.appendChild(pip);
+  }
+}
+
+function renderSelectedPreview() {
+  const b = state.battle;
+  const preview = $("selectedPreview");
+  preview.innerHTML = "";
+  if (!b?.selectedPun) {
+    preview.innerHTML = "<span>選んだカードがここに出ます</span>";
+    return;
+  }
+  preview.appendChild(cardNode(b.selectedPun, { selected: true }));
 }
 
 function showBurst(text, type = "win") {
@@ -457,16 +582,35 @@ function clearBurst() {
 
 function cardNode(card, opts = {}) {
   const node = document.createElement("button");
-  node.className = `toy-card ${card.type} ${card.id === "040" ? "rare" : ""} ${opts.locked ? "locked" : ""} ${opts.owned && !opts.locked ? "owned" : ""} ${opts.inDeck ? "in-deck" : ""} ${opts.ready ? "reaction-ready" : ""} ${opts.selected ? "selected" : ""}`;
+  const rarity = rarityOf(card);
+  node.className = `toy-card ${opts.compact ? "deck-card" : ""} ${card.type} ${rarity.className} ${opts.locked ? "locked" : ""} ${opts.owned && !opts.locked ? "owned" : ""} ${opts.inDeck ? "in-deck" : ""} ${opts.ready ? "reaction-ready" : ""} ${opts.selected ? "selected" : ""}`;
   node.type = "button";
   node.setAttribute("aria-label", `${card.name}${card.type === "pun" ? ` ${card.power}P` : ""}`);
   node.innerHTML = `
     <span class="id">${card.id}</span>
+    <span class="card-icon" aria-hidden="true">${CARD_ICONS[card.id] || "★"}</span>
     ${opts.locked ? '<span class="lock">LOCK</span>' : ""}
+    ${opts.compact && opts.owned && !opts.inDeck ? '<span class="state-label own-label">所持</span>' : ""}
+    ${opts.compact && opts.inDeck ? '<span class="state-label deck-label">デッキ入り</span>' : ""}
     <span class="name">${card.name}</span>
+    <span class="rarity-label">${rarity.label}</span>
+    ${opts.compact && card.type === "reaction" ? '<span class="type-label">ノリ</span>' : ""}
+    ${opts.compact ? `<span class="owned-count">所持 ${opts.count || 0}枚</span>` : ""}
     ${card.type === "pun" ? `<span class="power">${card.power}</span>` : `<span class="effect">${card.effect}</span>`}
   `;
   return node;
+}
+
+function rarityOf(card) {
+  if (card.id === "040") return { label: "ブラックレア", className: "rarity-black" };
+  if (card.type === "pun") {
+    if (card.power >= 8) return { label: "レア3", className: "rarity-3" };
+    if (card.power >= 6) return { label: "レア2", className: "rarity-2" };
+    return { label: "レア", className: "rarity-1" };
+  }
+  if (["043", "050", "052", "053", "054", "055", "057", "060"].includes(card.id)) return { label: "レア3", className: "rarity-3" };
+  if (["045", "046", "048", "049", "051", "056", "058", "059"].includes(card.id)) return { label: "レア2", className: "rarity-2" };
+  return { label: "レア", className: "rarity-1" };
 }
 
 function cardsByIds(ids) {

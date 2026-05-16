@@ -30,6 +30,7 @@
         <p id="deckCount">0 / 30</p>
       </header>
       <p id="deckHelp" class="deck-help">おすすめ編成で30枚にするとバトルできます。</p>
+      <p id="collectionStats" class="collection-stats">所持カード種類数 0/60 / 総所持枚数 0枚</p>
       <div class="toolbar">
         <button id="autoDeckBtn" class="primary">おすすめ編成</button>
         <button id="battleBtn" class="primary">バトル開始</button>
@@ -40,32 +41,44 @@
 
     <section id="battleScreen" class="screen">
       <header class="scorebar">
-        <div>自分 <strong id="playerScore">0</strong>P</div>
-        <div><span id="enemyName">相手</span> <strong id="enemyScore">0</strong>P</div>
+        <div class="score-side">
+          <span>自分</span>
+          <strong id="playerScore">0</strong><small>/5P</small>
+          <div id="playerPips" class="score-pips"></div>
+        </div>
+        <div class="score-side">
+          <span id="enemyName">相手</span>
+          <strong id="enemyScore">0</strong><small>/5P</small>
+          <div id="enemyPips" class="score-pips"></div>
+        </div>
       </header>
       <div id="battleLog" class="log">ダジャレ札をえらんでください。</div>
       <div id="resultBurst" class="result-burst" aria-live="polite"></div>
       <div id="gainBanner" class="gain-banner"></div>
       <div id="turnHint" class="turn-hint">ダジャレ札を選択</div>
       <div class="battle-status">
-        <div>
-          <span>選択中</span>
+        <div id="selectedStatus" class="status-chip">
+          <span>🃏 選択中</span>
           <strong id="selectedCardName">なし</strong>
         </div>
-        <div>
-          <span>ノリ</span>
+        <div id="reactionStatus" class="status-chip">
+          <span>✨ ノリ</span>
           <strong id="reactionState">未使用</strong>
         </div>
       </div>
+      <div id="selectedPreview" class="selected-preview">
+        <span>選んだカードがここに出ます</span>
+      </div>
       <div class="arena">
-        <div>
-          <p>自分</p>
+        <div class="field player-field">
+          <p><span class="field-icon">★</span> 自分の場</p>
           <div id="playerPlay" class="played"></div>
         </div>
-        <div>
-          <p>相手</p>
+        <div class="field enemy-field">
+          <p><span class="field-icon">♛</span> 相手の場</p>
           <div id="enemyPlay" class="played"></div>
         </div>
+        <span class="vs-badge">VS</span>
       </div>
       <h3>手札</h3>
       <div id="hand" class="hand"></div>
