@@ -8,7 +8,21 @@
 </head>
 <body>
   <main class="app">
-    <section id="titleScreen" class="screen active">
+    <section id="passScreen" class="screen active">
+      <div class="brand">
+        <p class="kicker">あいことばロック</p>
+        <h1>ダジャレ王</h1>
+        <p>あいことばを入力してね</p>
+      </div>
+      <form id="passForm" class="pass-form">
+        <label for="passInput">あいことば</label>
+        <input id="passInput" type="password" autocomplete="current-password" placeholder="あいことば">
+        <button class="primary" type="submit">ゲームに入る</button>
+        <p id="passError" class="pass-error" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section id="titleScreen" class="screen">
       <div class="brand">
         <p class="kicker">スマホカードバトル</p>
         <h1>ダジャレ王</h1>
@@ -16,6 +30,7 @@
       </div>
       <button id="startBtn" class="primary">はじめる</button>
       <button id="resetBtn" class="ghost">セーブをリセット</button>
+      <button id="forgetPassBtn" class="ghost">あいことばを忘れる</button>
     </section>
 
     <section id="enemyScreen" class="screen">

@@ -1,4 +1,6 @@
 const SAVE_KEY = "dajare-ou-save-v1";
+const ACCESS_PASSWORD = "dajare";
+const ACCESS_SESSION_KEY = "dajare-ou-access-ok";
 const OWNED_NORI = ["041", "042", "044", "047", "059"];
 const CARD_ICONS = {
   "001": "🥦", "002": "🍅", "003": "🥕", "004": "🛏️", "005": "🍛",
@@ -74,10 +76,11 @@ async function init() {
   bindEvents();
   renderEnemies();
   renderDeck();
-  show("titleScreen");
+  show(sessionStorage.getItem(ACCESS_SESSION_KEY) === "1" ? "titleScreen" : "passScreen");
 }
 
 function bindEvents() {
+  $("passForm").addEventListener("submit", handlePassword);
   $("startBtn").addEventListener("click", () => show("enemyScreen"));
   $("autoDeckBtn").addEventListener("click", autoDeck);
   $("battleBtn").addEventListener("click", startBattle);
@@ -85,6 +88,7 @@ function bindEvents() {
     if (state.battle?.selectedPun) resolveTurn();
   });
   $("resetBtn").addEventListener("click", resetSave);
+  $("forgetPassBtn").addEventListener("click", forgetPassword);
   $("againBtn").addEventListener("click", () => {
     renderDeck();
     show("deckScreen");
@@ -93,6 +97,26 @@ function bindEvents() {
   document.querySelectorAll(".back").forEach((button) => {
     button.addEventListener("click", () => show(button.dataset.to));
   });
+}
+
+function handlePassword(event) {
+  event.preventDefault();
+  const input = $("passInput");
+  if (input.value.trim() === ACCESS_PASSWORD) {
+    sessionStorage.setItem(ACCESS_SESSION_KEY, "1");
+    $("passError").textContent = "";
+    input.value = "";
+    show("titleScreen");
+    return;
+  }
+  $("passError").textContent = "ちがうあいことばです";
+  input.select();
+}
+
+function forgetPassword() {
+  sessionStorage.removeItem(ACCESS_SESSION_KEY);
+  $("passError").textContent = "";
+  show("passScreen");
 }
 
 function renderEnemies() {

@@ -14,6 +14,24 @@ python -m http.server 8000
 
 その後、ブラウザで `http://localhost:8000/` を開いてください。
 
+最初に合言葉画面が表示されます。初期合言葉は `dajare` です。
+
+## GitHub Pages
+
+公開URL:
+
+`https://yuji5124.github.io/dajare-ou-card-game/`
+
+設定方法:
+
+1. GitHubのリポジトリ設定を開きます。
+2. `Pages` を選びます。
+3. `Build and deployment` の `Source` を `Deploy from a branch` にします。
+4. `Branch` を `main`、フォルダを `/root` にして保存します。
+5. 数分後に公開URLへアクセスします。
+
+`index.html` はリポジトリ直下にあり、CSS/JS/カードデータは相対パスで読み込むため、`/dajare-ou-card-game/` のサブパスでも動作します。
+
 ## 遊び方
 
 1. タイトル画面で開始します。
