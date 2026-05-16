@@ -132,13 +132,17 @@ function bindEvents() {
 function openRoomScreen() {
   $("roomStatus").textContent = "";
   if (!firebaseReady()) {
-    $("roomStatus").textContent = "Firebase設定が必要です";
+    $("roomStatus").textContent = firebaseSetupMessage();
   }
   show("roomScreen");
 }
 
 function firebaseReady() {
   return Boolean(firebaseConfig.apiKey && firebaseConfig.databaseURL && firebaseConfig.projectId);
+}
+
+function firebaseSetupMessage() {
+  return "オンライン対戦にはFirebase設定が必要です。READMEの手順に沿って js/app.js の firebaseConfig と databaseURL を設定してください。";
 }
 
 function getDatabase() {
@@ -153,7 +157,7 @@ function getDatabase() {
 async function enterRoom(mode) {
   const db = getDatabase();
   if (!db) {
-    $("roomStatus").textContent = "Firebase設定が必要です";
+    $("roomStatus").textContent = firebaseSetupMessage();
     return;
   }
   const rawPassword = $("roomPassword").value.trim();
