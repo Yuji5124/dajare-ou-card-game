@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ダジャレ王</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="app">
+    <section id="titleScreen" class="screen active">
+      <div class="brand">
+        <p class="kicker">スマホカードバトル</p>
+        <h1>ダジャレ王</h1>
+        <p>ゆるいダジャレで、おもしろP勝負。</p>
+      </div>
+      <button id="startBtn" class="primary">はじめる</button>
+      <button id="resetBtn" class="ghost">セーブをリセット</button>
+    </section>
+
+    <section id="enemyScreen" class="screen">
+      <header><h2>敵をえらぶ</h2></header>
+      <button id="enemyBtn" class="enemy-card">
+        <span class="avatar">は</span>
+        <strong>はじめくん</strong>
+        <small>やさしいバランス型</small>
+      </button>
+      <button class="back ghost" data-to="titleScreen">もどる</button>
+    </section>
+
+    <section id="deckScreen" class="screen">
+      <header>
+        <h2>デッキ構成</h2>
+        <p id="deckCount">0 / 30</p>
+      </header>
+      <div class="toolbar">
+        <button id="autoDeckBtn" class="primary">おすすめ編成</button>
+        <button id="battleBtn" class="primary">バトル開始</button>
+      </div>
+      <div id="cardList" class="card-list"></div>
+      <button class="back ghost" data-to="enemyScreen">もどる</button>
+    </section>
+
+    <section id="battleScreen" class="screen">
+      <header class="scorebar">
+        <div>自分 <strong id="playerScore">0</strong>P</div>
+        <div>はじめくん <strong id="enemyScore">0</strong>P</div>
+      </header>
+      <div id="battleLog" class="log">ダジャレ札をえらんでください。</div>
+      <div id="turnHint" class="turn-hint">ダジャレ札を選択</div>
+      <div class="arena">
+        <div>
+          <p>自分</p>
+          <div id="playerPlay" class="played"></div>
+        </div>
+        <div>
+          <p>相手</p>
+          <div id="enemyPlay" class="played"></div>
+        </div>
+      </div>
+      <h3>手札</h3>
+      <div id="hand" class="hand"></div>
+      <button id="judgeBtn" class="primary judge" disabled>このカードで勝負</button>
+    </section>
+
+    <section id="resultScreen" class="screen">
+      <div class="brand">
+        <p class="kicker" id="resultSub">結果</p>
+        <h2 id="resultTitle">勝利！</h2>
+        <p id="resultText"></p>
+      </div>
+      <button id="againBtn" class="primary">もう一度あそぶ</button>
+      <button id="homeBtn" class="ghost">タイトルへ</button>
+    </section>
+  </main>
+  <script src="js/app.js"></script>
+</body>
+</html>
