@@ -1,10 +1,19 @@
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+}
+
+html {
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
+  max-width: 100vw;
   min-height: 100vh;
+  overflow-x: hidden;
   background: #f4dfe8;
   color: #24181d;
   font-family: "Arial", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
@@ -28,6 +37,7 @@ button:disabled {
 
 .app {
   width: min(100vw, 430px);
+  max-width: 100vw;
   min-height: 100vh;
   margin: 0 auto;
   background:
@@ -35,7 +45,8 @@ button:disabled {
     radial-gradient(circle at 82% 18%, rgba(255, 255, 255, .7) 0 10px, transparent 11px),
     linear-gradient(#fff7c8, #ffe4ef 54%, #d6f2ff);
   border-inline: 4px solid #fff;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .screen {
@@ -901,12 +912,18 @@ header {
 .arena {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .field {
   position: relative;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .field::before {
@@ -970,6 +987,9 @@ header {
 
 .played {
   position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 144px;
   border: 3px dashed rgba(36, 24, 29, .28);
   border-radius: 24px;
@@ -999,6 +1019,53 @@ header {
   min-height: 146px;
   padding: 10px 10px 48px;
   border-width: 4px;
+}
+
+.arena .toy-card {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 9px 8px 44px;
+  border-width: 3px;
+  border-radius: 20px;
+}
+
+.arena .toy-card .name {
+  display: -webkit-box;
+  margin: 7px 0 5px;
+  padding-right: 28px;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.16;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.arena .toy-card .card-icon {
+  right: 6px;
+  top: 30px;
+  width: 30px;
+  height: 30px;
+  border-width: 2px;
+  font-size: 17px;
+}
+
+.arena .toy-card .power {
+  right: 6px;
+  bottom: 6px;
+  min-width: 38px;
+  height: 38px;
+  font-size: 19px;
+}
+
+.arena .toy-card .effect {
+  max-height: 42px;
+  padding: 6px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.25;
 }
 
 .hand .name {
@@ -1100,6 +1167,34 @@ header {
 
   .battle-status {
     grid-template-columns: 1fr 104px;
+  }
+
+  .arena {
+    gap: 6px;
+  }
+
+  .field p {
+    font-size: 14px;
+  }
+
+  .played {
+    min-height: 132px;
+    border-radius: 18px;
+    border-width: 2px;
+  }
+
+  .played:empty::before {
+    inset: 8px;
+    font-size: 13px;
+  }
+
+  .arena .toy-card {
+    min-height: 132px;
+    padding: 8px 6px 40px;
+  }
+
+  .arena .toy-card .name {
+    font-size: 14px;
   }
 
   .hand .toy-card {
