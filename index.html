@@ -47,7 +47,18 @@
         <div>はじめくん <strong id="enemyScore">0</strong>P</div>
       </header>
       <div id="battleLog" class="log">ダジャレ札をえらんでください。</div>
+      <div id="resultBurst" class="result-burst" aria-live="polite"></div>
       <div id="turnHint" class="turn-hint">ダジャレ札を選択</div>
+      <div class="battle-status">
+        <div>
+          <span>選択中</span>
+          <strong id="selectedCardName">なし</strong>
+        </div>
+        <div>
+          <span>ノリ</span>
+          <strong id="reactionState">未使用</strong>
+        </div>
+      </div>
       <div class="arena">
         <div>
           <p>自分</p>

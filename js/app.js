@@ -70,6 +70,7 @@ function resetSave() {
   state.deck = [];
   save();
   $("battleLog").textContent = "セーブをリセットしました。";
+  clearBurst();
   show("titleScreen");
 }
 
@@ -132,6 +133,7 @@ function startBattle() {
   };
   $("turnHint").textContent = "ダジャレ札を選択";
   $("judgeBtn").disabled = true;
+  clearBurst();
   updateBattle("ダジャレ札を1枚えらんでください。ノリカードは1ターン1枚まで。");
   show("battleScreen");
 }
@@ -149,6 +151,7 @@ function updateBattle(message) {
   $("battleLog").textContent = message;
   $("turnHint").textContent = "ダジャレ札を選択";
   $("judgeBtn").disabled = !b.selectedPun;
+  updateBattleStatus();
   renderPlayed("playerPlay", b.selectedPun, b.selectedReaction);
   renderPlayed("enemyPlay");
   renderHand();
@@ -164,10 +167,12 @@ function renderHand() {
     node.addEventListener("click", () => playFromHand(card));
     $("hand").appendChild(node);
   });
+  updateBattleStatus();
 }
 
 function playFromHand(card) {
   const b = state.battle;
+  clearBurst();
   if (card.type === "pun") {
     if (b.selectedPun?.id === card.id) {
       resolveTurn();
@@ -184,6 +189,7 @@ function playFromHand(card) {
     $("turnHint").textContent = b.usedReaction ? "同じダジャレ札で勝負" : "ノリカード任意";
     $("judgeBtn").disabled = false;
     $("battleLog").textContent = "ノリカードを使うなら1枚えらんでください。同じダジャレ札か勝負ボタンで判定します。";
+    updateBattleStatus();
   }
 }
 
@@ -217,11 +223,14 @@ function resolveTurn() {
     b.playerScore += 1;
     const won = stealCard();
     message += ` 勝ち！${won ? `「${won.name}」を入手。` : ""}`;
+    showBurst(won ? `入手！ ${won.name}` : "勝ち！", won ? "gain" : "win");
   } else if (playerPower < enemyPower) {
     b.enemyScore += 1;
     message += " 負け。";
+    showBurst("負け", "lose");
   } else {
     message += " 引き分け。";
+    showBurst("引き分け", "draw");
   }
 
   discardPlayed(enemyPun, enemyReaction);
@@ -293,6 +302,7 @@ function finishOrNext(message) {
   $("battleLog").textContent = message;
   $("turnHint").textContent = "次のダジャレ札を選択";
   $("judgeBtn").disabled = true;
+  updateBattleStatus();
   renderHand();
   if (b.playerScore >= 5 || b.enemyScore >= 5) {
     setTimeout(() => {
@@ -310,6 +320,28 @@ function renderPlayed(target, pun, reaction) {
   area.innerHTML = "";
   if (pun) area.appendChild(cardNode(pun));
   if (reaction) area.appendChild(cardNode(reaction));
+}
+
+function updateBattleStatus() {
+  const b = state.battle;
+  if (!b) return;
+  $("selectedCardName").textContent = b.selectedPun ? b.selectedPun.name : "なし";
+  $("reactionState").textContent = b.usedReaction
+    ? (b.selectedReaction ? `使用済み: ${b.selectedReaction.name}` : "使用済み")
+    : "未使用";
+}
+
+function showBurst(text, type = "win") {
+  const burst = $("resultBurst");
+  burst.className = `result-burst show ${type}`;
+  burst.textContent = text;
+}
+
+function clearBurst() {
+  const burst = $("resultBurst");
+  if (!burst) return;
+  burst.className = "result-burst";
+  burst.textContent = "";
 }
 
 function cardNode(card, opts = {}) {
