@@ -8,29 +8,61 @@
 </head>
 <body>
   <main class="app">
-    <section id="passScreen" class="screen active">
-      <div class="brand">
-        <p class="kicker">あいことばロック</p>
-        <h1>ダジャレ王</h1>
-        <p>あいことばを入力してね</p>
-      </div>
-      <form id="passForm" class="pass-form">
-        <label for="passInput">あいことば</label>
-        <input id="passInput" type="password" autocomplete="current-password" placeholder="あいことば">
-        <button class="primary" type="submit">ゲームに入る</button>
-        <p id="passError" class="pass-error" aria-live="polite"></p>
-      </form>
-    </section>
-
-    <section id="titleScreen" class="screen">
+    <section id="titleScreen" class="screen active">
       <div class="brand">
         <p class="kicker">スマホカードバトル</p>
         <h1>ダジャレ王</h1>
         <p>ゆるいダジャレで、おもしろP勝負。</p>
       </div>
-      <button id="startBtn" class="primary">はじめる</button>
+      <button id="startBtn" class="primary">ひとりで遊ぶ</button>
+      <button id="onlineBtn" class="primary">オンライン対戦</button>
       <button id="resetBtn" class="ghost">セーブをリセット</button>
-      <button id="forgetPassBtn" class="ghost">あいことばを忘れる</button>
+    </section>
+
+    <section id="roomScreen" class="screen">
+      <header><h2>オンライン対戦</h2></header>
+      <form id="roomForm" class="pass-form">
+        <label for="roomPassword">パスワード</label>
+        <input id="roomPassword" type="text" autocomplete="off" placeholder="同じ言葉で同じルーム">
+        <div class="toolbar">
+          <button id="createRoomBtn" class="primary" type="button">ルームを作る</button>
+          <button id="joinRoomBtn" class="primary" type="button">参加する</button>
+        </div>
+        <p id="roomStatus" class="pass-error" aria-live="polite"></p>
+      </form>
+      <button id="roomBackBtn" class="back ghost" data-to="titleScreen" type="button">もどる</button>
+    </section>
+
+    <section id="onlineBattleScreen" class="screen">
+      <header class="scorebar">
+        <div class="score-side">
+          <span>自分</span>
+          <strong id="onlineMyScore">0</strong><small>/5P</small>
+          <div id="onlineMyPips" class="score-pips"></div>
+        </div>
+        <div class="score-side">
+          <span>相手</span>
+          <strong id="onlineOpponentScore">0</strong><small>/5P</small>
+          <div id="onlineOpponentPips" class="score-pips"></div>
+        </div>
+      </header>
+      <div id="onlineLog" class="log">相手を待っています。</div>
+      <div class="battle-status">
+        <div id="onlineSelectedStatus" class="status-chip">
+          <span>選択中カード</span>
+          <strong id="onlineSelectedCardName">なし</strong>
+        </div>
+        <div id="onlineOpponentStatus" class="status-chip">
+          <span>相手</span>
+          <strong id="onlineOpponentReady">未選択</strong>
+        </div>
+      </div>
+      <div id="onlineSelectedPreview" class="selected-preview">
+        <span>選んだカードがここに出ます</span>
+      </div>
+      <h3>手札</h3>
+      <div id="onlineHand" class="hand"></div>
+      <button id="roomResetBtn" class="ghost" type="button">ルームリセット</button>
     </section>
 
     <section id="enemyScreen" class="screen">
@@ -110,6 +142,8 @@
       <button id="homeBtn" class="ghost">タイトルへ</button>
     </section>
   </main>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

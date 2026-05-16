@@ -14,8 +14,6 @@ python -m http.server 8000
 
 その後、ブラウザで `http://localhost:8000/` を開いてください。
 
-最初に合言葉画面が表示されます。初期合言葉は `dajare` です。
-
 ## GitHub Pages
 
 公開URL:
@@ -42,3 +40,30 @@ python -m http.server 8000
 6. おもしろPが高い方が1Pを取り、先に5P取ると勝ちです。
 
 所持カードとデッキは `localStorage` に保存されます。タイトル画面のリセットボタンで初期化できます。
+
+## オンライン対戦
+
+Firebase Realtime Databaseを使います。外部ビルドは不要で、GitHub Pages上でもCDN版SDKで動きます。
+
+1. Firebase Consoleでプロジェクトを作成します。
+2. Webアプリを追加し、表示された設定値を `js/app.js` の `firebaseConfig` に貼り付けます。
+3. Realtime Databaseを作成し、Database URLを `databaseURL` に入れます。
+4. ルールを設定して公開します。
+5. タイトル画面の「オンライン対戦」から、2台の端末で同じパスワードを入力します。
+
+最小ルール例:
+
+```json
+{
+  "rules": {
+    "rooms": {
+      "$roomId": {
+        ".read": true,
+        ".write": true
+      }
+    }
+  }
+}
+```
+
+このルールはプロトタイプ用です。友人・家族とのテスト後は、期限や書き込み範囲を絞ってください。

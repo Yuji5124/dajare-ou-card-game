@@ -1,6 +1,13 @@
 const SAVE_KEY = "dajare-ou-save-v1";
-const ACCESS_PASSWORD = "dajare";
-const ACCESS_SESSION_KEY = "dajare-ou-access-ok";
+const firebaseConfig = {
+  apiKey: "",
+  authDomain: "",
+  databaseURL: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
 const OWNED_NORI = ["041", "042", "044", "047", "059"];
 const CARD_ICONS = {
   "001": "🥦", "002": "🍅", "003": "🥕", "004": "🛏️", "005": "🍛",
@@ -63,7 +70,16 @@ const state = {
   ownedCounts: {},
   deck: [],
   enemy: null,
-  battle: null
+  battle: null,
+  online: {
+    app: null,
+    db: null,
+    roomRef: null,
+    unsubscribe: null,
+    roomId: "",
+    role: "",
+    resolvingTurn: null
+  }
 };
 
 const $ = (id) => document.getElementById(id);
@@ -76,47 +92,368 @@ async function init() {
   bindEvents();
   renderEnemies();
   renderDeck();
-  show(sessionStorage.getItem(ACCESS_SESSION_KEY) === "1" ? "titleScreen" : "passScreen");
+  show("titleScreen");
 }
 
 function bindEvents() {
-  $("passForm").addEventListener("submit", handlePassword);
   $("startBtn").addEventListener("click", () => show("enemyScreen"));
+  $("onlineBtn").addEventListener("click", openRoomScreen);
+  $("roomForm").addEventListener("submit", (event) => event.preventDefault());
+  $("createRoomBtn").addEventListener("click", () => enterRoom("create"));
+  $("joinRoomBtn").addEventListener("click", () => enterRoom("join"));
+  $("roomBackBtn").addEventListener("click", leaveOnlineRoom);
+  $("roomResetBtn").addEventListener("click", resetOnlineRoom);
   $("autoDeckBtn").addEventListener("click", autoDeck);
   $("battleBtn").addEventListener("click", startBattle);
   $("judgeBtn").addEventListener("click", () => {
     if (state.battle?.selectedPun) resolveTurn();
   });
   $("resetBtn").addEventListener("click", resetSave);
-  $("forgetPassBtn").addEventListener("click", forgetPassword);
   $("againBtn").addEventListener("click", () => {
+    if (state.online.roomRef) {
+      resetOnlineRoom();
+      return;
+    }
     renderDeck();
     show("deckScreen");
   });
-  $("homeBtn").addEventListener("click", () => show("titleScreen"));
+  $("homeBtn").addEventListener("click", () => {
+    if (state.online.roomRef) {
+      leaveOnlineRoom();
+      return;
+    }
+    show("titleScreen");
+  });
   document.querySelectorAll(".back").forEach((button) => {
     button.addEventListener("click", () => show(button.dataset.to));
   });
 }
 
-function handlePassword(event) {
-  event.preventDefault();
-  const input = $("passInput");
-  if (input.value.trim() === ACCESS_PASSWORD) {
-    sessionStorage.setItem(ACCESS_SESSION_KEY, "1");
-    $("passError").textContent = "";
-    input.value = "";
-    show("titleScreen");
-    return;
+function openRoomScreen() {
+  $("roomStatus").textContent = "";
+  if (!firebaseReady()) {
+    $("roomStatus").textContent = "Firebase設定が必要です";
   }
-  $("passError").textContent = "ちがうあいことばです";
-  input.select();
+  show("roomScreen");
 }
 
-function forgetPassword() {
-  sessionStorage.removeItem(ACCESS_SESSION_KEY);
-  $("passError").textContent = "";
-  show("passScreen");
+function firebaseReady() {
+  return Boolean(firebaseConfig.apiKey && firebaseConfig.databaseURL && firebaseConfig.projectId);
+}
+
+function getDatabase() {
+  if (!firebaseReady() || !window.firebase) return null;
+  if (!state.online.app) {
+    state.online.app = firebase.initializeApp(firebaseConfig);
+    state.online.db = firebase.database();
+  }
+  return state.online.db;
+}
+
+async function enterRoom(mode) {
+  const db = getDatabase();
+  if (!db) {
+    $("roomStatus").textContent = "Firebase設定が必要です";
+    return;
+  }
+  const rawPassword = $("roomPassword").value.trim();
+  if (!rawPassword) {
+    $("roomStatus").textContent = "パスワードを入力してください";
+    $("roomPassword").focus();
+    return;
+  }
+
+  const roomId = roomIdFromPassword(rawPassword);
+  const roomRef = db.ref(`rooms/${roomId}`);
+  $("roomStatus").textContent = mode === "create" ? "ルーム作成中..." : "参加中...";
+
+  try {
+    const result = await roomRef.transaction((room) => {
+      if (mode === "create") {
+        if (room) return;
+        return newOnlineRoom(roomId, "player1");
+      }
+      if (!room) return;
+      room.players = room.players || {};
+      if (!room.players.player1) {
+        room.players.player1 = newOnlinePlayer("player1");
+        room.status = "waiting";
+        return room;
+      }
+      if (!room.players.player2) {
+        room.players.player2 = newOnlinePlayer("player2");
+        room.status = "playing";
+        return room;
+      }
+      return;
+    });
+
+    if (!result.committed) {
+      $("roomStatus").textContent = mode === "create"
+        ? "同じパスワードのルームが既にあります"
+        : "ルームがないか、満員です";
+      return;
+    }
+
+    const room = result.snapshot.val();
+    const role = !room.players?.player2 || mode === "create" ? "player1" : "player2";
+    startOnlineWatch(roomRef, roomId, role);
+  } catch (error) {
+    $("roomStatus").textContent = `接続エラー: ${error.message}`;
+  }
+}
+
+function roomIdFromPassword(password) {
+  const encoded = btoa(unescape(encodeURIComponent(password)));
+  return encoded.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function newOnlineRoom(roomId, role) {
+  return {
+    roomId,
+    status: "waiting",
+    turn: 1,
+    resolvingTurn: 0,
+    winner: "",
+    lastResult: { result: "相手を待っています。" },
+    createdAt: firebase.database.ServerValue.TIMESTAMP,
+    updatedAt: firebase.database.ServerValue.TIMESTAMP,
+    players: {
+      [role]: newOnlinePlayer(role)
+    }
+  };
+}
+
+function newOnlinePlayer(role) {
+  const deck = buildOnlineInitialDeck().map((card) => card.id);
+  const hand = deck.splice(0, 5);
+  return {
+    name: role,
+    ready: true,
+    score: 0,
+    hand,
+    deck,
+    selectedCard: "",
+    selectedNori: "",
+    turn: 1,
+    connected: true,
+    updatedAt: firebase.database.ServerValue.TIMESTAMP
+  };
+}
+
+function buildOnlineInitialDeck() {
+  const owned = initialOwnedCounts();
+  const cards = state.cards.filter((card) => owned[card.id]);
+  const puns = cards
+    .filter((card) => card.type === "pun")
+    .sort((a, b) => b.power - a.power || a.id.localeCompare(b.id));
+  const reactions = cards.filter((card) => card.type === "reaction");
+  return shuffle([...puns.slice(0, 25), ...reactions.slice(0, 5)]).slice(0, 30);
+}
+
+function startOnlineWatch(roomRef, roomId, role) {
+  if (state.online.unsubscribe) state.online.roomRef.off("value", state.online.unsubscribe);
+  state.online.roomRef = roomRef;
+  state.online.roomId = roomId;
+  state.online.role = role;
+  state.online.resolvingTurn = null;
+  $("roomStatus").textContent = role === "player1" ? "作成しました。相手を待っています。" : "参加しました。";
+  state.online.unsubscribe = (snapshot) => handleOnlineRoom(snapshot.val());
+  roomRef.on("value", state.online.unsubscribe);
+}
+
+function leaveOnlineRoom() {
+  if (state.online.roomRef && state.online.unsubscribe) {
+    state.online.roomRef.off("value", state.online.unsubscribe);
+  }
+  state.online.roomRef = null;
+  state.online.unsubscribe = null;
+  state.online.roomId = "";
+  state.online.role = "";
+  show("titleScreen");
+}
+
+function handleOnlineRoom(room) {
+  if (!room) {
+    $("roomStatus").textContent = "ルームがリセットされました";
+    show("roomScreen");
+    return;
+  }
+  if (room.status === "waiting") {
+    $("roomStatus").textContent = "相手を待っています...";
+    show("roomScreen");
+    return;
+  }
+  renderOnlineBattle(room);
+  if (room.status === "finished") {
+    showOnlineResult(room);
+    return;
+  }
+  maybeResolveOnlineTurn(room);
+  show("onlineBattleScreen");
+}
+
+function renderOnlineBattle(room) {
+  const role = state.online.role;
+  const otherRole = role === "player1" ? "player2" : "player1";
+  const me = room.players?.[role];
+  const other = room.players?.[otherRole];
+  if (!me || !other) return;
+
+  $("onlineMyScore").textContent = me.score || 0;
+  $("onlineOpponentScore").textContent = other.score || 0;
+  renderPips("onlineMyPips", me.score || 0);
+  renderPips("onlineOpponentPips", other.score || 0);
+  $("onlineSelectedCardName").textContent = me.selectedCard ? cardById(me.selectedCard)?.name || me.selectedCard : "なし";
+  $("onlineOpponentReady").textContent = other.selectedCard ? "選択済み" : "未選択";
+  $("onlineSelectedStatus").classList.toggle("ready", Boolean(me.selectedCard));
+  $("onlineOpponentStatus").classList.toggle("ready", Boolean(other.selectedCard));
+  renderOnlineLog(room.lastResult);
+  renderOnlinePreview(me);
+  renderOnlineHand(me, room.status);
+}
+
+function renderOnlineLog(lastResult) {
+  renderLogTo("onlineLog", lastResult || { result: "カードを選んでください。" });
+}
+
+function renderOnlinePreview(me) {
+  const preview = $("onlineSelectedPreview");
+  preview.innerHTML = "";
+  const selected = cardById(me.selectedCard);
+  if (!selected) {
+    preview.innerHTML = "<span>選んだカードがここに出ます</span>";
+    return;
+  }
+  preview.appendChild(cardNode(selected, { selected: true }));
+}
+
+function renderOnlineHand(me, status) {
+  $("onlineHand").innerHTML = "";
+  cardsByIds(me.hand || []).forEach((card) => {
+    const selected = me.selectedCard === card.id || me.selectedNori === card.id;
+    const ready = card.type === "reaction" && me.selectedCard && !me.selectedNori;
+    const node = cardNode(card, { selected, ready });
+    if (status !== "playing" || (card.type === "reaction" && (!me.selectedCard || me.selectedNori))) {
+      node.disabled = true;
+    }
+    node.addEventListener("click", () => selectOnlineCard(card));
+    $("onlineHand").appendChild(node);
+  });
+}
+
+function selectOnlineCard(card) {
+  const role = state.online.role;
+  if (!state.online.roomRef || !role) return;
+  const updates = {
+    [`players/${role}/updatedAt`]: firebase.database.ServerValue.TIMESTAMP
+  };
+  if (card.type === "pun") {
+    updates[`players/${role}/selectedCard`] = card.id;
+  } else {
+    updates[`players/${role}/selectedNori`] = card.id;
+  }
+  state.online.roomRef.update(updates);
+}
+
+function maybeResolveOnlineTurn(room) {
+  if (state.online.role !== "player1") return;
+  const p1 = room.players?.player1;
+  const p2 = room.players?.player2;
+  if (!p1?.selectedCard || !p2?.selectedCard) return;
+  if (state.online.resolvingTurn === room.turn) return;
+  state.online.resolvingTurn = room.turn;
+  state.online.roomRef.transaction((current) => {
+    if (!current || current.status !== "playing") return current;
+    if (current.resolvingTurn === current.turn) return current;
+    const a = current.players?.player1;
+    const b = current.players?.player2;
+    if (!a?.selectedCard || !b?.selectedCard) return current;
+    return resolveOnlineTurn(current);
+  });
+}
+
+function resolveOnlineTurn(room) {
+  const p1 = { ...room.players.player1 };
+  const p2 = { ...room.players.player2 };
+  const p1Card = cardById(p1.selectedCard);
+  const p2Card = cardById(p2.selectedCard);
+  const p1Nori = cardById(p1.selectedNori);
+  const p2Nori = cardById(p2.selectedNori);
+  if (!p1Card || !p2Card) return room;
+
+  let p1Power = p1Card.power;
+  let p2Power = p2Card.power;
+  let p1Effect = applyReaction(p1Nori, p1Power, p2Power);
+  p1Power = p1Effect.self;
+  p2Power = p1Effect.enemy;
+  let p2Effect = applyReaction(p2Nori, p2Power, p1Power);
+  p2Power = p2Effect.self;
+  p1Power = p2Effect.enemy;
+
+  if (p1Nori?.id === "047" || p2Nori?.id === "047") {
+    p1Power = p1Card.power + rand(0, 3);
+    p2Power = p2Card.power + rand(0, 3);
+  }
+
+  let result = "引き分け。得点なし";
+  if (p1Power > p2Power) {
+    p1.score = (p1.score || 0) + 1;
+    result = "player1が1P";
+  } else if (p2Power > p1Power) {
+    p2.score = (p2.score || 0) + 1;
+    result = "player2が1P";
+  }
+
+  p1.hand = refillOnlineHand(removePlayedIds(p1.hand, [p1.selectedCard, p1.selectedNori]), p1.deck);
+  p2.hand = refillOnlineHand(removePlayedIds(p2.hand, [p2.selectedCard, p2.selectedNori]), p2.deck);
+  p1.selectedCard = "";
+  p1.selectedNori = "";
+  p2.selectedCard = "";
+  p2.selectedNori = "";
+  p1.turn = (room.turn || 1) + 1;
+  p2.turn = (room.turn || 1) + 1;
+
+  room.players.player1 = p1;
+  room.players.player2 = p2;
+  room.turn = (room.turn || 1) + 1;
+  room.resolvingTurn = room.turn - 1;
+  room.lastResult = {
+    played: `player1: ${p1Card.name} ${p1Power}P / player2: ${p2Card.name} ${p2Power}P`,
+    nori: `ノリ: ${p1Nori?.name || "なし"} / ${p2Nori?.name || "なし"}`,
+    result
+  };
+  room.updatedAt = firebase.database.ServerValue.TIMESTAMP;
+  if (p1.score >= 5 || p2.score >= 5) {
+    room.status = "finished";
+    room.winner = p1.score >= 5 ? "player1" : "player2";
+  }
+  return room;
+}
+
+function removePlayedIds(hand, playedIds) {
+  const remove = new Set(playedIds.filter(Boolean));
+  return (hand || []).filter((id) => !remove.has(id));
+}
+
+function refillOnlineHand(hand, deck) {
+  const next = [...(hand || [])];
+  while (next.length < 5 && deck.length) next.push(deck.shift());
+  return next;
+}
+
+function showOnlineResult(room) {
+  const win = room.winner === state.online.role;
+  $("resultSub").textContent = "オンライン対戦";
+  $("resultTitle").textContent = win ? "勝利！" : "敗北";
+  $("resultText").textContent = "オンライン対戦ではカード入手はありません。";
+  show("resultScreen");
+}
+
+function resetOnlineRoom() {
+  if (!state.online.roomRef) return;
+  state.online.roomRef.remove();
+  leaveOnlineRoom();
 }
 
 function renderEnemies() {
@@ -546,7 +883,11 @@ function updateBattleStatus() {
 }
 
 function renderBattleLog(lines) {
-  const log = $("battleLog");
+  renderLogTo("battleLog", lines);
+}
+
+function renderLogTo(target, lines) {
+  const log = $(target);
   log.innerHTML = "";
   [
     ["札", lines.played],
@@ -639,6 +980,10 @@ function rarityOf(card) {
 
 function cardsByIds(ids) {
   return ids.map((id) => state.cards.find((card) => card.id === id)).filter(Boolean);
+}
+
+function cardById(id) {
+  return state.cards.find((card) => card.id === id);
 }
 
 function draw(deck, count) {
